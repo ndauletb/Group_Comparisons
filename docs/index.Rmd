@@ -1,0 +1,216 @@
+---
+title: "Group comparisons"
+author: "Nurlan Dauletbayev"
+date: "2023-12-11"
+output: html_document
+---
+It is very common to complement the descriptive analyses with group comparisions. This can be done using the parametric t test (for paired and unpaired two-group comparisons) or ANOVA test (for a three-group comparison). An unpaired t-test is carried out when two independent variables are to be compared (example: age comparison between female and male patients in the "Cleveland" training dataset). This will be shown in this session.
+
+This session will necessitate the use of one package. The installation and activation of this packages is done as follows:
+
+If the package "DescTools" is not installed yet in your R, please install and activate it using the following command line. 
+```{r}
+install.packages("DescTools", repos = "http://cran.us.r-project.org")
+library(DescTools)
+```
+Then, our usual training dataset ("Cleveland...") should be imported.
+```{r}
+myData <- read.csv(file.choose())
+head(myData)
+tail(myData)
+dim(myData)
+class(myData)
+sum(is.na(myData))
+colSums(is.na(myData)) # you should pay attention to this new function; it shows the variables with missed values
+myData1 <- na.omit(myData)
+dim(myData1)
+colSums(is.na(myData1))
+```
+this modifies the type of the variable "sex", since this variable will be used in some of the subsequent analyses
+```{r}
+class(myData1$sex)
+myData1$sex <- as.factor(myData1$sex)
+class(myData1$sex)
+levels(myData1$sex)
+```
+# A. Two-group comparisons
+
+There are two options how unpaired t-test can be applied.
+
+Option 1 (estimates the statistical significance of age difference between female and male patients):
+```{r}
+t.test.1 <- t.test(formula = age ~ sex, data = myData1)
+print(t.test.1)
+```
+The output "p-value = 0.1006" indicates the absence of statistical significance. Please note that extreme small p-values can sometimes be written as scientific notation (e.g., "p-value < 2.2e-16"). The latter example indicates that the p value is less than 2.2 x 10^-16 (that is, less than 0.00000000000000022), which indicates a significant difference. 
+
+Another option to use the "t.test" function is as follows (the argument "paired = FALSE" indicates the unpaired test):
+```{r}
+t.test.2 <- t.test(myData$trestbps, myData$chol, paired = FALSE)
+print(t.test.2)
+```
+In this option, two different variables are compared without stratification by groups.
+
+Often, we want to carry out paired t-test. An example for this is when the patient values after the treatment are compared with patient values before the treatment. For this comparisons, we will create a new dataset, since the "Cleveland" dataset only permits unpaired comparisons.
+```{r}
+CholBeforeStatins <- myData1$chol
+class(CholBeforeStatins)
+length(CholBeforeStatins)
+head(CholBeforeStatins)
+tail(CholBeforeStatins)
+```
+To create simulated values of cholsterol after the treatment, 193 random numbers will be generated and subtracted from the vector "CholBeforeStatins". Function "rnorm()" of base R will be used to randomly generate a vector of 193 random numbers normally distributed around a given average value ("mean"), with a pre-defined standard deviation ("sd"). You should try to change the values of "mean" and "sd", and test the vector:
+```{r}
+RandomNumbers_vector <- rnorm(193, mean = 2, sd = 0.1)
+head(RandomNumbers_vector)
+tail(RandomNumbers_vector)
+```
+This will show the distribution of the values in this vector
+```{r}
+hist(RandomNumbers_vector)
+```
+Now we can subtract this random vector from the cholesterol values from before the treatment:
+```{r}
+CholAfterStatins <- CholBeforeStatins - RandomNumbers_vector
+length(CholAfterStatins)
+head(CholAfterStatins)
+tail(CholAfterStatins)
+```
+We will combine both cholecterol vectors (before and after the treatment) into a data frame:
+```{r}
+CholTreatmentData <- cbind.data.frame(CholBeforeStatins,
+                                      CholAfterStatins)
+dim(CholTreatmentData)
+head(CholTreatmentData)
+tail(CholTreatmentData)
+```
+Now we can carry out the paired t-test to compare the cholesterol values before and after the treatment.
+```{r}
+t.test.3 <- t.test(CholTreatmentData$CholAfterStatins, 
+                     CholTreatmentData$CholBeforeStatins, paired = TRUE)
+print(t.test.3)
+```
+Is the difference between cholesterol values before and after the treatment statistically significant?
+
+When we deal with the data that are not normally distributed, it is common to use non-parametric tests, such as Wilcoxon test for paired comparisons and Mann-Whitney test for unpared comparisons. One way how to test for normal distribution is shown above, with the histogram. Another popular methods are based on calculations, either by the Shapiro-Wilk or Kolmogorov-Smirnov test. The following will demonstrate all three methods with regard to the age variable.
+
+First, the dataset will be subset for female and male patients
+```{r}
+myData1_female <- myData1[which(myData1$sex == "female"), ]
+dim(myData1_female)
+myData1_male <- myData1[which(myData1$sex == "male"), ]
+dim(myData1_male)
+```
+Then, the age (of either female or male patients) will be saved in separate vectors
+```{r}
+# first, female patients
+Age_female <- myData1_female$age
+head(Age_female)
+tail(Age_female)
+hist(Age_female)
+Shapiro_Age_female <- shapiro.test(Age_female)
+print(Shapiro_Age_female)
+```
+If the p-value is higher 0.05, then the data distribution in the vector is close to normal. This makes sense because the histogram also showed the data distribution close to "bell-shaped".
+```{r}
+# next, male patients
+Age_male <- myData1_male$age
+head(Age_male)
+tail(Age_male)
+hist(Age_male)
+Shapiro_Age_male <- shapiro.test(Age_male)
+print(Shapiro_Age_male)
+```
+The following will confirm these observations using the Kolmogorov-Smirnov test. If the p-value is above 0.05, then the data are normally distributed. 
+```{r}
+KS_Age_female <- ks.test(Age_female, "pnorm")
+print(KS_Age_female)
+KS_Age_male <- ks.test(Age_male, "pnorm")
+print(KS_Age_male)
+```
+The argument "pnorm" in this function indicates that the comparison should be with a theoretical normal distribution.
+
+All applied tests indicated normal distribution of age. Let's find another variable that is not normally distributed.
+```{r}
+# female patients
+Oldpeak_female <- myData1_female$oldpeak
+hist(Oldpeak_female)
+Shapiro_Oldpeak_female <- shapiro.test(Oldpeak_female)
+print(Oldpeak_female)
+KS_Oldpeak_female <- ks.test(Oldpeak_female, "pnorm")
+print(KS_Oldpeak_female)
+# male patients
+Oldpeak_male <- myData1_male$oldpeak
+hist(Oldpeak_male)
+Shapiro_Oldpeak_male <- shapiro.test(Oldpeak_male)
+print(Oldpeak_male)
+KS_Oldpeak_male <- ks.test(Oldpeak_male, "pnorm")
+print(KS_Oldpeak_male)
+```
+Since "oldpeak" values are not normally distributed in both female and male patients, Mann-Whitney test will be used. This test is a modification of Wilcoxon test, so do not be surprised that the function is called "wilcox.test"
+```{r}
+Wilcox.test.1 <- wilcox.test(formula = oldpeak ~ sex, data = myData1)
+print(Wilcox.test.1)
+```
+The p-value indicates statistical difference (p = 0.01322). It is useful to combine the comparative analysis with a descriptive analysis (such as, boxplot) to visualize the estimated statistical differences:
+```{r}
+boxplot(formula = oldpeak ~ sex, data = myData1)
+# try to deduce what these programming lines do
+segments(x0 = 1, x1 = 2, y0 = 5, y1 = 5)
+text(x = 1.5, y = 5.5,
+     labels = "p = 0.01322",
+     cex = 0.8)
+```
+
+Please try to apply Mann-Whitney test as t-test, option 2.
+
+When this unparametric test is applied as paired test, it is called Wilcoxon test. It is confusing, so just try to memorize the respective use of this test!
+
+We will next apply Wilcoxon (i.e., paired) test to the previously created data frame of cholesterol values before and after treatment.
+```{r}
+Wilcox.test.2 <- wilcox.test(CholTreatmentData$CholAfterStatins, 
+                     CholTreatmentData$CholBeforeStatins, paired = TRUE)
+print(Wilcox.test.2)
+```
+Please answer the question whether this test indicated a statistical difference.
+
+# B. Three-group comparisons
+
+The one-way ANOVA test compares three or more groups. The best way to apply this test is to use a similar "formula"-based method, in which there is one analyzed variable followed by the "~" sign, and the groups are defined by a different variable. In the dataset "Cleveland", a three-group analysis can be done based on the variable "cp" that has four classes. We will first need to transform this variable into a categorical variable.
+```{r}
+myData1$cp <- as.factor(myData1$cp)
+levels(myData1$cp)
+```
+We will analyze the variable "oldpeak", as to whether there is a significant differences among groups defined by the variable "cp". It is always helpful to first visualize the data:
+```{r}
+boxplot(formula = oldpeak ~ cp, data = myData1)
+```
+It appears that at least one group ("atyp_angina") shows lower values of "oldpeak". Let's carry out ANOVA test using function "aov()".
+```{r}
+ANOVA_test <- aov(formula = oldpeak ~ cp, data = myData1)
+print(ANOVA_test)
+summary(ANOVA_test)
+```
+Important comment: unlike with previous t-test and Wilcoxon / Mann-Whitney tests, the output of ANOVA test differs whether it is printed using "print()" function or "summary()" function. I usually recommend to use the "summary()" function with ANOVA result. The p-value is demonstrated below the "Pr(>F)" (here: 0.00011).
+
+ANOVA test only indicates that there is a statistical difference among groups. To find out which group(s) is/are statistically different, we will need to apply a post-hoc test. In my research, I usually utilize Tukey HSD test, which adjusts for multiple comparisons. This test uses the output of ANOVA test and carries out pairwise comparisons among groups, such as shown below:
+```{r}
+Tukey_test <- TukeyHSD(ANOVA_test)
+print(Tukey_test)
+```
+The results of Tukey HSD test indicate statistical significance in two comparisons "atyp_angina - asympt" (p adj = 0.0003074) and "non_angina - asympt" (p adj = 0.0060712). The "p adj" stands for "p-value adjusted for multiple comparisons".
+
+If the group comparison is to be done by a non-parametric test, then Kruskal-Wallis test should be used. This is done as follows.
+```{r}
+Kruskal_test <- kruskal.test(formula = oldpeak ~ cp, data = myData1)
+print(Kruskal_test)
+```
+Also this test indicates statistical significance in "oldpeak" values among the groups in the variable "cp". Dunn's test is an appropriate post-hoc test to follow up Kruskal-Wallis test. Dunn's test allows for a wide selection of adjustment methods to correct p-values for multiple comparisons. There is no consensus, but Bonferroni correction for multiple comparisons seems to be widely acceptable. 
+
+Dunn's test is not part of base R functions, so we will need to use this function "DunnTest" of the "DescTools" package (which you have installed above). 
+```{r}
+Dunn_test <- DescTools::DunnTest(oldpeak ~ cp, data = myData1,
+                                 method = "bonferroni")
+print(Dunn_test)
+```
+Please compare the p-values ("pval") in the table with the results of Tukey HSD test. Are the results of Dunn's test and Tukey HSD comparable or different?
